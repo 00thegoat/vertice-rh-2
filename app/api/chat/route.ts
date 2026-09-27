@@ -47,7 +47,13 @@ export async function POST(req: Request) {
   const lidos = new Map<string, string>();
 
   const system = systemPrompt(docs);
-  const modelMessages = await convertToModelMessages(messages.slice(-8));
+  // Das mensagens anteriores, manda só o texto: os documentos lidos nelas (tool outputs) estouravam
+  // o limite de tokens por minuto do Groq a partir da segunda pergunta. A última vai inteira.
+  const recentes = messages.slice(-8);
+  const historico = recentes.map((m, i) =>
+    i === recentes.length - 1 ? m : { ...m, parts: m.parts.filter((p) => p.type === "text") },
+  );
+  const modelMessages = await convertToModelMessages(historico.filter((m) => m.parts.length > 0));
 
   const stream = createUIMessageStream({
     onError: mensagemDeErro,
@@ -57,6 +63,7 @@ export async function POST(req: Request) {
         system,
         messages: modelMessages,
         temperature: 0.2,
+        maxRetries: 4,
         stopWhen: stepCountIs(6),
         tools: {
           buscar_na_base: tool({
@@ -80,35 +87,39 @@ export async function POST(req: Request) {
         },
       });
       // Repassa os chunks em sequência (e não com merge) para o "finish" sair sempre por último.
+      // Um erro no meio (ex.: limite do Groq) fica guardado: se algum documento já foi lido,
+      // a chamada de reserva abaixo ainda consegue responder.
+      let erro: { type: "error"; errorText: string } | undefined;
       for await (const chunk of busca.toUIMessageStream({
         sendReasoning: false,
         sendFinish: false,
         messageMetadata: ({ part }) => (part.type === "start" ? { logId } : undefined),
         onError: mensagemDeErro,
       })) {
-        writer.write(chunk);
+        if (chunk.type === "error") erro ??= chunk;
+        else writer.write(chunk);
       }
 
-      let texto = "";
-      try {
-        texto = await busca.text;
-      } catch {
+      let texto = await busca.text.then((t) => t, () => "");
+      if (erro && (texto.trim() || lidos.size === 0)) {
+        writer.write(erro);
         writer.write({ type: "finish" });
-        return; // o erro já foi enviado ao site no laço acima
+        return;
       }
 
-      // O modelo às vezes para depois de ler os documentos sem escrever nada.
-      // Nesse caso, pede a resposta final numa chamada sem ferramentas.
+      // O modelo às vezes para depois de ler os documentos sem escrever nada (ou é interrompido
+      // pelo limite do Groq). Nesse caso, pede a resposta final numa chamada sem ferramentas.
       if (!texto.trim()) {
         const resposta = streamText({
           model: groq(config.groqModel),
           system,
           messages: [
             ...modelMessages,
-            ...(await busca.responseMessages),
+            ...(await busca.responseMessages.then((m) => m, () => [])),
             { role: "user", content: "Com base nos documentos que você já leu acima, escreva agora a resposta final para a minha pergunta, seguindo as regras." },
           ],
           temperature: 0.2,
+          maxRetries: 4,
         });
         for await (const chunk of resposta.toUIMessageStream({ sendStart: false, sendReasoning: false, onError: mensagemDeErro })) {
           writer.write(chunk);
