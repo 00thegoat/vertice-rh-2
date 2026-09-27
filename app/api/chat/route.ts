@@ -9,7 +9,7 @@ import { registrar } from "@/lib/registros";
 
 export const maxDuration = 60;
 
-const groq = createGroq({ apiKey: process.env.GROQ_API_KEY, baseURL: process.env.GROQ_BASE_URL || undefined });
+const groq = createGroq({ apiKey: process.env.GROQ_API_KEY?.trim(), baseURL: process.env.GROQ_BASE_URL || undefined });
 
 function textOf(m: UIMessage | undefined) {
   return (m?.parts || []).map((p: any) => (p.type === "text" ? p.text : "")).join("").trim();

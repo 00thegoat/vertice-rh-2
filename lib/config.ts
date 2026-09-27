@@ -1,14 +1,17 @@
 // Todas as configurações vêm de variáveis de ambiente (.env.local ou painel da Vercel).
 
+// trim(): valores colados no painel da Vercel às vezes vêm com espaço ou TAB invisível.
+const env = (nome: string) => process.env[nome]?.trim() || "";
+
 export const config = {
-  groqModel: process.env.GROQ_MODEL || "openai/gpt-oss-120b",
+  groqModel: env("GROQ_MODEL") || "openai/gpt-oss-120b",
   // Pasta "Vértice - Base RH" no Google Drive.
-  driveFolderId: process.env.DRIVE_FOLDER_ID || "1ltkS6k1EoGDgoVRN9WTUuqjN_HUthxE9",
-  driveFolderName: process.env.DRIVE_FOLDER_NAME || "Vértice - Base RH",
+  driveFolderId: env("DRIVE_FOLDER_ID") || "1ltkS6k1EoGDgoVRN9WTUuqjN_HUthxE9",
+  driveFolderName: env("DRIVE_FOLDER_NAME") || "Vértice - Base RH",
   // Planilha "Guia Vértice - Registros" (perguntas, avaliações e encaminhamentos).
-  sheetsId: process.env.SHEETS_ID || "109EH6_8RWqRbM9sPi6Rg7oasLBaHOZY0xKmeUM9TnXM",
+  sheetsId: env("SHEETS_ID") || "109EH6_8RWqRbM9sPi6Rg7oasLBaHOZY0xKmeUM9TnXM",
   // Senha simples para o painel do RH. Vazio = painel aberto.
-  rhSenha: process.env.RH_SENHA || "",
+  rhSenha: env("RH_SENHA") || "",
 };
 
 export type ServiceAccount = { client_email: string; private_key: string };

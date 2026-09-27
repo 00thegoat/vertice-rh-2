@@ -14,7 +14,7 @@ export async function GET() {
   else {
     try {
       const r = await fetch(`${process.env.GROQ_BASE_URL || "https://api.groq.com/openai/v1"}/models`, {
-        headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
+        headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY?.trim()}` },
         cache: "no-store",
       });
       const j = await r.json();
